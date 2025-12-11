@@ -13,6 +13,7 @@ From Creating the DXF for the keyboard
 
 <img width="1078" height="793" alt="Screenshot 2025-12-09 at 10 37 33 PM" src="https://github.com/user-attachments/assets/bd9ba8f2-e1bb-4b5b-8d95-446dd9b0bb10" />
 <img width="1076" height="820" alt="Screenshot 2025-12-09 at 10 38 02 PM" src="https://github.com/user-attachments/assets/522fbe3c-ec0b-492f-a9e1-e06795fce595" />
+<img width="1470" height="693" alt="Screenshot 2025-12-11 at 9 00 15 AM" src="https://github.com/user-attachments/assets/5021f633-3a6e-4a9e-b09e-db242df6cf48" />
 This is case, made sure that everything fit and even had a little wiggle room. Also added a cool caligraphic W for my name - Will
 
 <img width="1171" height="783" alt="Screenshot 2025-12-09 at 10 39 37 PM" src="https://github.com/user-attachments/assets/96e4a2f5-b64a-4534-9e59-cb88b20c1be8" />
