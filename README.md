@@ -19,7 +19,7 @@ This was the schematic created for this project
 
 ## **PCB**
 <img width="1141" height="646" alt="Screenshot 2025-12-09 at 10 33 19 PM" src="https://github.com/user-attachments/assets/143705f1-603a-4908-8681-c1d99f8e0292" />
-PCB looking fire with the scorpian     \
+PCB looking fire with the scorpian     
 
 ## **DXF for the keyboard**
 <img width="1437" height="830" alt="Screenshot 2025-11-29 at 8 51 36 PM" src="https://github.com/user-attachments/assets/74b2ffe6-6462-44ed-abd4-db4adac860c7" />
