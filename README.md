@@ -2,16 +2,9 @@
 
 ## **This is a general overview**
 
-A personal micropad with capabilities to make custom binds with hotswappable 3d printed caps for flare. Mainly used for listening to music or lots of copy and pasting. Able to add profiles in code to customize buttons.
+A personal micropad with capabilities to make custom binds with hotswappable 3d printed caps for flare. Mainly used for listening to music or lots of copy and pasting. Able to add profiles in code to customize buttons.  
 
-**List of Parts** (Full list on BOM.csv)
-- Seeed XIAO RP2040
-- 1 0.91 inch OLED display
-- M3x16mm screws
-- M3x5mx4mm heatset inserts
-- 1 EC11 Rotary encoder
-- 4 MX-Style switches
-- Through-hole 1N4148 Diodes?
+List of parts availibe on the BOM
 
 ## **Schematic**
 <img width="1470" height="956" alt="Screenshot 2025-11-29 at 7 44 55 PM" src="https://github.com/user-attachments/assets/53530f39-5b33-46eb-95e4-e68aae38dc59" />
