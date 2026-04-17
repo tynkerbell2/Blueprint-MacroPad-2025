@@ -1,5 +1,5 @@
 """
-Seeed Studio XIAO RP2040 - Media Controller (Fixed)
+Seeed Studio XIAO RP2040 - Media Controller (Not working fully)
 =====================================================
 Fixes:
   - Double input: buttons now require full press AND release cycle
