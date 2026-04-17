@@ -1,194 +1,130 @@
+"""
+Seeed Studio XIAO RP2040 - Media Controller (Fixed)
+=====================================================
+Fixes:
+  - Double input: buttons now require full press AND release cycle
+  - Encoder volume: checked independently from button elif chain
+  - OLED: explicit I2C address 0x3C, startup delay, minimal init
+
+Wiring:
+  D0  = Play/Pause button
+  D1  = Skip Forward button
+  D2  = Skip Backward button
+  D3  = Hello World button
+  D4  = OLED SDA
+  D5  = OLED SCL
+  D7  = Encoder push button
+  D8  = Encoder A
+  D10 = Encoder B
+  Common wire = GND
+"""
 
 import board
 import busio
+import digitalio
+import rotaryio
 import time
+import usb_hid
+from adafruit_hid.consumer_control import ConsumerControl
+from adafruit_hid.consumer_control_code import ConsumerControlCode
 
-from kmk.kmk_keyboard import KMKKeyboard
-from kmk.keys import KC
+# ── Wait for USB to settle ────────────────────────────────────────────────────
+time.sleep(1)
 
-from kmk.scanners.digitalio import DigitalScanner
-from kmk.extensions.encoder import EncoderHandler
-from kmk.extensions.display import Display
-from kmk.extensions.display.ssd1306 import SSD1306
-
-
-# Keyboard + I2C OLED
-keyboard = KMKKeyboard()
-i2c = busio.I2C(board.GP7, board.GP6)
-
-display = Display(
-    SSD1306(
-        i2c=i2c,
-        width=128,
-        height=32,
-        addr=0x3C,
-    )
-)
-
-keyboard.extensions.append(display)
+# ── OLED Setup ────────────────────────────────────────────────────────────────
+oled = None
+try:
+    import adafruit_ssd1306
+    i2c = busio.I2C(scl=board.D5, sda=board.D4, frequency=400000)
+    time.sleep(0.5)
+    oled = adafruit_ssd1306.SSD1306_I2C(128, 64, i2c, addr=0x3C)
+    oled.fill(0)
+    oled.text("Hello World!", 16, 28, 1)
+    oled.show()
+    print("OLED OK - Hello World!")
+except Exception as e:
+    print("OLED failed:", e)
 
 
+def show_oled_message(text):
+    if oled is None:
+        print("OLED unavailable")
+        return
 
-# Rotary Encoder (GP2, GP4, GP3)
-encoder = EncoderHandler()
-encoder.pins = (
-    (board.GP2, board.GP4, board.GP3),
-)
+    oled.fill(0)
+    x = max(0, (128 - len(text) * 8) // 2)
+    oled.text(text, x, 28, 1)
+    oled.show()
 
-encoder.map = [
-    ((KC.VOLD, KC.VOLU), KC.MUTE)
-]
+# ── USB HID ───────────────────────────────────────────────────────────────────
+cc = ConsumerControl(usb_hid.devices)
 
-keyboard.extensions.append(encoder)
+# ── Button class: fires once on press, requires release before next press ─────
+class Button:
+    def __init__(self, pin):
+        self._io = digitalio.DigitalInOut(pin)
+        self._io.direction = digitalio.Direction.INPUT
+        self._io.pull = digitalio.Pull.UP
+        self._pressed = False   # True while physically held down
 
+    @property
+    def just_pressed(self):
+        """Returns True exactly once per physical press."""
+        raw = not self._io.value   # True = pressed (active low)
+        if raw and not self._pressed:
+            self._pressed = True
+            return True
+        if not raw:
+            self._pressed = False
+        return False
 
-# Buttons (GP26 → SW1 … GP29 → SW4)
-keyboard.matrix = [
-    DigitalScanner(
-        pins=[board.GP26, board.GP27, board.GP28, board.GP29],
-        value_when_pressed=False,
-    )
-]
+btn_play  = Button(board.D0)
+btn_fwd   = Button(board.D1)
+btn_back  = Button(board.D2)
+btn_hello = Button(board.D3)
+btn_enc   = Button(board.D7)
 
+# ── Rotary Encoder ─────────────────────────────────────────────────────────────
+# If volume goes the wrong direction, swap D8 and D10 here:
+encoder  = rotaryio.IncrementalEncoder(board.D8, board.D10)
+last_step = encoder.position // 4
 
+# ── Main loop ──────────────────────────────────────────────────────────────────
+while True:
 
-# Profiles
-PROFILE_NAMES = ["MEDIA", "EDIT", "EMPTY"]
+    # --- Buttons (each fires exactly once per press) ---
+    if btn_play.just_pressed:
+        cc.send(ConsumerControlCode.PLAY_PAUSE)
+        print("Play/Pause")
 
-keyboard.keymap = [
-    # Profile 0 — MEDIA
-    [KC.TO(1), KC.MPRV, KC.MPLY, KC.MNXT],
-    # Profile 1 — EDITING
-    [KC.TO(2), KC.CUT, KC.COPY, KC.PASTE],
-    # Profile 2 — EMPTY
-    [KC.TO(0), KC.NO, KC.NO, KC.NO],
-]
+    if btn_fwd.just_pressed:
+        cc.send(ConsumerControlCode.SCAN_NEXT_TRACK)
+        print("Skip Forward")
 
+    if btn_back.just_pressed:
+        cc.send(ConsumerControlCode.SCAN_PREVIOUS_TRACK)
+        print("Skip Backward")
 
-# Track state for UI
-volume_steps = 50
-last_encoder_pos = 0
-last_layer = 0
-scroll_offset = 0
-scroll_active = True
-scroll_timer = 0
+    if btn_hello.just_pressed:
+        show_oled_message("Hello World!")
+        print("Hello World!")
 
+    if btn_enc.just_pressed:
+        cc.send(ConsumerControlCode.MUTE)
+        print("Mute")
 
-# Pixel Art Scorpion (8×8)
-# Two-frame “idle blink”
-SCORPION_1 = [
-    0b00110000,
-    0b01111000,
-    0b11111100,
-    0b11101100,
-    0b01111000,
-    0b00110000,
-    0b01110000,
-    0b01010000,
-]
+    # --- Rotary encoder: use one volume event per detent ---
+    cur_step = encoder.position // 4
+    delta    = cur_step - last_step
+    if delta != 0:
+        last_step = cur_step
+        if delta > 0:
+            for _ in range(abs(delta)):
+                cc.send(ConsumerControlCode.VOLUME_INCREMENT)
+            print("Vol Up", abs(delta))
+        else:
+            for _ in range(abs(delta)):
+                cc.send(ConsumerControlCode.VOLUME_DECREMENT)
+            print("Vol Down", abs(delta))
 
-SCORPION_2 = [
-    0b00110000,
-    0b01101000,
-    0b11111100,
-    0b11101100,
-    0b01111000,
-    0b00110000,
-    0b01110000,
-    0b01010000,
-]
-
-scorpion_frame = 0
-frame_timer = 0
-
-
-def draw_scorpion(disp, x, y):
-    frame = SCORPION_1 if scorpion_frame == 0 else SCORPION_2
-    for row, byte in enumerate(frame):
-        for col in range(8):
-            if byte & (1 << (7 - col)):
-                disp.pixel(x + col, y + row, 1)
-
-
-
-# OLED Draw Function
-def draw_ui(disp, state):
-    global scroll_offset, scroll_active, scroll_timer
-    global scorpion_frame, frame_timer
-
-    disp.fill(0)
-
-    # Layer change → trigger scrolling banner
-    if state.layer != last_layer:
-        scroll_active = True
-        scroll_offset = 128
-        scroll_timer = time.monotonic()
-
-    # Scrolling banner at top
-    if scroll_active:
-        banner = f"<< {PROFILE_NAMES[state.layer]} MODE >>"
-        disp.text(banner, scroll_offset, 0)
-        if time.monotonic() - scroll_timer > 0.02:
-            scroll_offset -= 2
-            scroll_timer = time.monotonic()
-
-        if scroll_offset < -len(banner) * 6:
-            scroll_active = False
-    else:
-        disp.text(f"Profile: {PROFILE_NAMES[state.layer]}", 0, 0)
-
-    # Volume bar
-    disp.text("Vol:", 0, 14)
-    disp.rect(28, 14, int(volume_steps), 8, 1, fill=True)
-
-    # Scorpion mascot bottom right
-    frame_timer += 1
-    if frame_timer > 20:  # slow animation
-        scorpion_frame = 1 - scorpion_frame
-        frame_timer = 0
-
-    draw_scorpion(disp, 112, 20)
-
-    disp.show()
-
-
-display.draw = draw_ui
-
-
-# Encoder → Update local volume bar
-def after_hid_send(kbd):
-    global volume_steps, last_encoder_pos
-    pos = encoder.encoders[0].position
-
-    if pos != last_encoder_pos:
-        delta = pos - last_encoder_pos
-        volume_steps += delta * 2
-        volume_steps = max(0, min(100, volume_steps))
-        last_encoder_pos = pos
-
-keyboard.after_hid_send = after_hid_send
-
-
-
-# Track last layer
-def before_matrix_scan(kbd):
-    global last_layer
-    last_layer = kbd.active_layers[0]
-
-keyboard.before_matrix_scan = before_matrix_scan
-
-
-# Boot Logo
-def show_boot_logo():
-    display.driver.fill(0)
-    display.driver.text(" SCORPION OS ", 10, 12)
-    display.driver.show()
-    time.sleep(1.5)
-
-show_boot_logo()
-
-
-
-# Start
-if __name__ == "__main__":
-    keyboard.go()
+    time.sleep(0.01)
